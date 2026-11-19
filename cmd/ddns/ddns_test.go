@@ -184,7 +184,7 @@ func TestStopUpdatingDeleteOnStop(t *testing.T) {
 	}
 
 	mockSetter.EXPECT().FinalDelete(gomock.Any(), ppfmt, ipnet.IP4, domain4, params).Return(setter.ResponseUpdated)
-	mockSetter.EXPECT().FinalClearWAFList(gomock.Any(), ppfmt, wafList, "managed list", gomock.Any()).Return(setter.ResponseUpdated)
+	mockSetter.EXPECT().FinalClearWAFList(gomock.Any(), ppfmt, wafList, "managed list", gomock.Any(), api.CleanupAllowAsync).Return(setter.ResponseUpdated)
 	mockHeartbeat.EXPECT().Log(gomock.Any(), ppfmt, gomock.Any()).DoAndReturn(
 		func(_ context.Context, _ pp.PP, msg heartbeat.Message) bool {
 			require.True(t, msg.OK)
@@ -202,7 +202,7 @@ func TestStopUpdatingDeleteOnStop(t *testing.T) {
 		},
 	)
 
-	stopUpdating(context.Background(), ppfmt, lifecycleConfig, updateConfig, mockHeartbeat, mockNotifier, mockSetter)
+	require.True(t, stopUpdating(context.Background(), ppfmt, lifecycleConfig, updateConfig, mockHeartbeat, mockNotifier, mockSetter))
 }
 
 func TestStopUpdatingSkipsDeleteOnStop(t *testing.T) {
@@ -213,7 +213,7 @@ func TestStopUpdatingSkipsDeleteOnStop(t *testing.T) {
 	mockNotifier := mocks.NewMockNotifier(mockCtrl)
 	mockSetter := mocks.NewMockSetter(mockCtrl)
 
-	stopUpdating(
+	require.True(t, stopUpdating(
 		context.Background(),
 		pp.NewSilent(),
 		&config.LifecycleConfig{
@@ -242,5 +242,72 @@ func TestStopUpdatingSkipsDeleteOnStop(t *testing.T) {
 		mockHeartbeat,
 		mockNotifier,
 		mockSetter,
+	))
+}
+
+func TestRunOnceCleanup(t *testing.T) {
+	t.Parallel()
+
+	mockCtrl := gomock.NewController(t)
+	mockHeartbeat := mocks.NewMockHeartbeat(mockCtrl)
+	mockNotifier := mocks.NewMockNotifier(mockCtrl)
+	mockSetter := mocks.NewMockSetter(mockCtrl)
+	ppfmt := pp.NewSilent()
+
+	domain4 := domain.FQDN("example.org")
+	wafList := api.WAFList{AccountID: "acc", Name: "office"}
+	params := api.RecordParams{
+		TTL:     api.TTLAuto,
+		Proxied: false,
+		Comment: "managed",
+		Tags:    nil,
+	}
+
+	updateConfig := &config.UpdateConfig{
+		Provider: map[ipnet.Family]provider.Provider{
+			ipnet.IP4: provider.NewStaticEmpty(),
+			ipnet.IP6: nil,
+		},
+		Domains: map[ipnet.Family][]domain.Domain{
+			ipnet.IP4: {domain4},
+			ipnet.IP6: nil,
+		},
+		HostID6:  nil,
+		WAFLists: []api.WAFList{wafList},
+		DefaultPrefixLen: map[ipnet.Family]int{
+			ipnet.IP4: 32,
+			ipnet.IP6: 64,
+		},
+		DetectionFilter: map[ipnet.Family]ipfilter.Filter{
+			ipnet.IP4: ipfilter.KeepAll(),
+		},
+		TTL:                api.TTLAuto,
+		Proxied:            map[domain.Domain]bool{domain4: false},
+		RecordComment:      "managed",
+		WAFListDescription: "managed list",
+		WAFListItemComment: "",
+		DetectionTimeout:   time.Second,
+		UpdateTimeout:      time.Second,
+	}
+
+	mockSetter.EXPECT().FinalDelete(gomock.Any(), ppfmt, ipnet.IP4, domain4, params).Return(setter.ResponseUpdated)
+	mockSetter.EXPECT().FinalClearWAFList(gomock.Any(), ppfmt, wafList, "managed list", gomock.Any(), api.CleanupWait).Return(setter.ResponseUpdated)
+	mockHeartbeat.EXPECT().Ping(gomock.Any(), ppfmt, gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ pp.PP, msg heartbeat.Message) bool {
+			require.True(t, msg.OK)
+			require.Contains(t, msg.Format(), "Deleted A records for example.org")
+			require.Contains(t, msg.Format(), "Cleaned WAF list(s) acc/office")
+			return true
+		},
 	)
+	mockNotifier.EXPECT().Send(gomock.Any(), ppfmt, gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ pp.PP, notification notifier.Notification) bool {
+			require.Equal(t, notifier.KindCleanup, notification.Kind)
+			require.Contains(t, notification.Format(), "Deleted A records for example.org")
+			require.Contains(t, notification.Format(), "Cleaned WAF list(s) acc/office")
+			return true
+		},
+	)
+
+	require.True(t, runOnceCleanup(context.Background(), context.Background(), ppfmt, updateConfig, mockHeartbeat, mockNotifier, mockSetter))
 }

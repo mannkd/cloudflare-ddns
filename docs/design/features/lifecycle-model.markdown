@@ -76,7 +76,7 @@ Concrete detection and provider contracts are owned by [Provider Raw-Data Contra
 Admissibility is semantically prior to target derivation: the raw data must be suitable for every in-scope resource before any derived target may authorize mutation. A pure operation may decide admissibility and produce candidate targets together, provided it discards those targets when the raw data is inadmissible.
 
 - IPv4 DNS derivation turns each raw entry into a DNS address target by forgetting the prefix length.
-- IPv6 DNS derivation uses each observed prefix and each domain's effective `hostid6` set under the compatibility and target-set rules in [DNS Ownership Instantiation](managed-record-ownership.markdown).
+- IPv6 DNS derivation uses each observed prefix and each domain’s effective `hostid6` set under the compatibility and target-set rules in [DNS Ownership Instantiation](managed-record-ownership.markdown).
 - WAF derivation turns each raw IP address with prefix length into a WAF prefix target by taking its subnet.
 
 Admissibility preflight for one IP family must finish before any mutation for that family. If any raw entry is inadmissible for any in-scope resource, that family yields `abort`: existing DNS and WAF content for the family is preserved for the round. The other IP family remains independent. This preflight rule does not claim transactional mutation after preflight succeeds.
@@ -93,7 +93,19 @@ Cleanup is shutdown-time mutation after the process has decided to stop.
 
 Cleanup deletes the resources that are eligible for shutdown deletion.
 
+With `UPDATE_CRON=@once` and `DELETE_ON_STOP=true`, run cleanup directly instead of first reconciling empty targets. Startup validates that every managed IP family uses `static.empty`; families using `none` are outside the cleanup scope.
+
 Deletion eligibility is owned by [Ownership Model](ownership-model.markdown) and instantiated for WAF in [WAF Ownership Instantiation](managed-waf-item-ownership.markdown).
+
+Ordinary shutdown may skip completion polling when the API allows it and the result cannot guide further cleanup. This shortens shutdown and reduces the risk of forced termination after the container stop grace period, at the cost of an unknown final outcome. One-shot cleanup instead waits within the configured timeout because confirming completion is its purpose.
+
+## Exit Status
+
+Exit status reports the outcome of the work the invocation is responsible for: the update or cleanup in one-shot mode, and final cleanup on normal scheduled-mode shutdown. Success returns 0; an unrecovered failure returns 1. No-op, successful fallback, and accepted asynchronous work under the cleanup waiting policy count as success. Failures in scheduled update rounds do not accumulate into the shutdown result. Startup and scheduling failures return 1.
+
+On scheduled shutdown, cleanup finalizes a process that has already decided to stop. Enabling `DELETE_ON_STOP` makes this cleanup part of the requested work. An observed cleanup failure returns 1 so callers can detect the finalization problem while the process proceeds with shutdown.
+
+Cancellation that prevents one-shot work from succeeding is a failure; a normal scheduled stop is not. Signals after successful work and heartbeat/notification delivery failures do not change the work result.
 
 ## Phase Boundaries
 

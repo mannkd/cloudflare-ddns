@@ -16,7 +16,7 @@ jobs:
       contents: read
     steps:
       - name: 🛡️ Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -43,7 +43,7 @@ jobs:
       - name: 🏗️ Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.1"
+          go-version: "1.27.3"
 
       - name: 🔎 Check the built-in Cloudflare drift watches
         working-directory: scripts/github-actions/cloudflare-doc-watch
@@ -58,7 +58,7 @@ jobs:
       contents: read
     steps:
       - name: 🛡️ Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo-and-containers: true
@@ -84,7 +84,7 @@ jobs:
       - name: 🏗️ Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.1"
+          go-version: "1.27.3"
           cache-dependency-path: scripts/github-actions/cloudflare-auth-error-watch/go.sum
 
       - name: 🧪 Run auth-error behavior watch
@@ -98,7 +98,7 @@ jobs:
       contents: read
     steps:
       - name: 🛡️ Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           # Probe evolving documentation URLs and their redirects without a fixed allowlist.
           egress-policy: audit
@@ -111,7 +111,7 @@ jobs:
       - name: 🏗️ Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.1"
+          go-version: "1.27.3"
           cache-dependency-path: scripts/github-actions/link-check/go.mod
       - name: 🌐 Probe external links
         working-directory: scripts/github-actions/link-check

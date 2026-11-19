@@ -105,6 +105,8 @@ For WAF, the resources eligible for deletion are managed items and, when full ow
 - When that condition holds, shutdown may delete the whole list.
 - Otherwise, shutdown may delete only managed items.
 
+If whole-list deletion fails, fall back to managed-item deletion: a rule may still reference the list. Successful fallback satisfies cleanup even if the list remains.
+
 The empty selector default can still imply full ownership, but selector emptiness alone is not the semantic rule.
 
 ## Caching Contract
@@ -117,7 +119,7 @@ Cloudflare item-creation and item-deletion APIs return whole-list content, so ma
 
 ## Tradeoffs
 
-- The design favors strict ownership isolation over reusing foreign items. This may leave parallel items that cover the same IP address, but it avoids mutating another deployment's entries.
+- The design favors strict ownership isolation over reusing foreign items. This may leave parallel items that cover the same IP address, but it avoids mutating another deployment’s entries.
 - Regex selectors allow flexible grouping, but exact ownership boundaries require explicit anchors such as `^managed-by-a$`.
 - The selector name is intentionally distinct from `WAF_LIST_ITEM_COMMENT` to reduce operator confusion.
 

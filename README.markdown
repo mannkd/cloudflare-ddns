@@ -1,12 +1,14 @@
 # 🌟 Cloudflare DDNS
 
 [![Github Source](https://img.shields.io/badge/source-github-orange)](https://github.com/favonia/cloudflare-ddns)
-[![Codecov](https://img.shields.io/codecov/c/gh/favonia/cloudflare-ddns)](https://app.codecov.io/gh/favonia/cloudflare-ddns)
+[![Codecov](https://codecov.io/gh/favonia/cloudflare-ddns/branch/main/graph/badge.svg?precision=2)](https://app.codecov.io/gh/favonia/cloudflare-ddns)
 [![Docker Image Size](https://img.shields.io/docker/image-size/favonia/cloudflare-ddns/latest)](https://hub.docker.com/r/favonia/cloudflare-ddns)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/6680/badge)](https://www.bestpractices.dev/en/projects/6680/passing)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/favonia/cloudflare-ddns?label=openssf+scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/favonia/cloudflare-ddns)
 
 A feature-rich and robust Cloudflare DDNS updater with a small Docker image. It detects your machine’s public IP addresses and updates DNS records through the Cloudflare API.
+
+The emoji “🧪” marks experimental features, and the emoji “🤖” marks technical details that most readers can skip on a first pass.
 
 ## ✨ Highlights
 
@@ -29,7 +31,7 @@ A feature-rich and robust Cloudflare DDNS updater with a small Docker image. It 
 
 ### 🧱 Reliability
 
-- <img src="https://img.shields.io/codecov/c/gh/favonia/cloudflare-ddns?label=" alt="Codecov" align="top"> The code is extensively tested.
+- <img src="https://codecov.io/gh/favonia/cloudflare-ddns/branch/main/graph/badge.svg?precision=2" alt="Codecov" align="top"> The code is extensively tested.
 - 🔬 Compatibility with the Cloudflare API is verified periodically with [dedicated scripts](scripts/README.markdown).
 - 🧰 The updater is designed to recover from transient network failures.
 
@@ -129,13 +131,16 @@ Incorporate the following fragment into the compose file (typically `docker-comp
 services:
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:1
-    # Prefer "1" or "1.x.y" in production.
+    # Prefer versioned tags in production.
     #
     # - "1" tracks the latest stable release whose major version is 1
+    # - "1.x" (unreleased) tracks stable patch releases within one minor version
     # - "1.x.y" pins one specific stable version
     # - "latest" moves to each new stable release and may pick up breaking
     #   changes in a future major release, so it is not recommended in production
     # - "edge" tracks the latest unreleased development build
+    #
+    # Only "edge" and tags pointing to the latest stable release are supported.
     network_mode: host
     # Optional. This bypasses network isolation and makes IPv6 easier.
     # See "Use IPv6 without sharing the host network".
@@ -176,7 +181,7 @@ The value of `DOMAINS` should be a list of [fully qualified domain names (FQDNs)
 
 Keep `PROXIED=true` when you want [Cloudflare’s proxy](https://developers.cloudflare.com/dns/proxy-status/) for the domains managed by this updater. Proxying lets Cloudflare cache webpages and hide your IP addresses.
 
-| If you want... | Do this |
+| If you want… | Do this |
 | -- | -- |
 | Create new records that expose your real IP addresses | Remove `PROXIED=true` or change it to `PROXIED=false` |
 | Create new records for non-HTTP(S) traffic | Remove `PROXIED=true` or change it to `PROXIED=false`, because Cloudflare cannot proxy it |
@@ -271,7 +276,7 @@ environment:
   - IP6_PROVIDER=none
 ```
 
-Use `IP6_PROVIDER=none` to stop managing IPv6, or `IP4_PROVIDER=none` to stop managing IPv4. Existing managed DNS records of that IP family are preserved. 🧪 If you also use WAF lists, existing managed items of that IP family are preserved there too.
+Use `IP6_PROVIDER=none` to stop managing IPv6, or `IP4_PROVIDER=none` to stop managing IPv4. Existing DNS records of that IP family are preserved. 🧪 If you also use WAF lists, existing items of that IP family are preserved there too.
 
 #### Use IPv6 without sharing the host network
 
@@ -426,6 +431,19 @@ Start with the same image and environment variables shown in [Quick Start](#quic
 
 Due to high maintenance costs, the dedicated Kubernetes instructions have been removed. You can still generate Kubernetes configurations from the Docker Compose template using [Kompose](https://kompose.io/) version 1.35.0 or later. A simple [Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/) is sufficient here; there is no inbound traffic, so a [Service](https://kubernetes.io/docs/concepts/services-networking/service/) is not required. This README does not maintain first-party Kubernetes manifests.
 
+<a id="exit-status"></a>
+
+## 🚦 Exit Status
+
+- **Scheduled runs (the default):** The updater repeats updates on its schedule and continues after failed updates. When stopped normally, it returns **0**, or **1** if cleanup requested by `DELETE_ON_STOP=true` fails.
+- **One-shot runs (`UPDATE_CRON=@once`):** The updater exits after one update or cleanup. It returns **0** on success, including when no changes are needed, or **1** if the update or cleanup fails or is interrupted before completion.
+
+Startup and configuration errors return **1**.
+
+🤖 Scheduled shutdown cleanup can return **0** once Cloudflare accepts the deletion request, without waiting for deletion to finish. One-shot cleanup waits for completion within the configured timeout.
+
+🤖 Heartbeat and notification delivery failures do not change the exit status.
+
 ## 🛠️ Troubleshooting
 
 ### 🤔 I got <code>exec /bin/ddns: operation not permitted</code>
@@ -444,7 +462,7 @@ There have been reports of intermittent issues with the default provider `cloudf
 
 ### 🤔 I got <code>context deadline exceeded</code> and IP detection failed
 
-First check the updater logs to identify the provider and IP family that timed out. If the failed provider is `cloudflare.trace`, test every current built-in endpoint from a diagnostic container that shares the updater container's existing network stack. The commands below use the `cloudflare-ddns` service name from this README and test IPv4; replace the service name if yours differs, and replace `--ipv4` with `--ipv6` for an IPv6 failure. If the updater receives explicit proxy environment variables, pass the same variables to the diagnostic container.
+First check the updater logs to identify the provider and IP family that timed out. If the failed provider is `cloudflare.trace`, test every current built-in endpoint from a diagnostic container that shares the updater container’s existing network stack. The commands below use the `cloudflare-ddns` service name from this README and test IPv4; replace the service name if yours differs, and replace `--ipv4` with `--ipv6` for an IPv6 failure. If the updater receives explicit proxy environment variables, pass the same variables to the diagnostic container.
 
 ```bash
 DDNS_CONTAINER="$(docker-compose ps -q cloudflare-ddns)"
@@ -454,7 +472,7 @@ docker run --rm --network "container:${DDNS_CONTAINER}" curlimages/curl:latest -
 docker run --rm --network "container:${DDNS_CONTAINER}" curlimages/curl:latest --fail --show-error --silent --ipv4 https://connectivity.cloudflareclient.com/cdn-cgi/trace
 ```
 
-If `curl` reports `Could not resolve host`, DNS resolution failed in the updater's container network. Check the host's DNS configuration and Docker's [DNS services](https://docs.docker.com/engine/network/#dns-services). A failure at one endpoint does not by itself prevent detection, because another endpoint may return a valid response. If any of the three commands succeeds but detection still times out, check the updater logs for response-validation failures, then try increasing `DETECTION_TIMEOUT` (for example, `DETECTION_TIMEOUT=1m`).
+If `curl` reports `Could not resolve host`, DNS resolution failed in the updater’s container network. Check the host’s DNS configuration and Docker’s [DNS services](https://docs.docker.com/engine/network/#dns-services). A failure at one endpoint does not by itself prevent detection, because another endpoint may return a valid response. If any of the three commands succeeds but detection still times out, check the updater logs for response-validation failures, then try increasing `DETECTION_TIMEOUT` (for example, `DETECTION_TIMEOUT=1m`).
 
 If that still does not help, please [open a GitHub issue](https://github.com/favonia/cloudflare-ddns/issues/new/choose) and include your setup details, relevant configs with secrets redacted, and any logs you have so that we can investigate further.
 
@@ -476,8 +494,6 @@ The updater does not add timestamps itself because most runtimes already do:
 <a id="all-settings"></a>
 
 ### ⚙️ All Settings
-
-The emoji “🧪” marks experimental features, and the emoji “🤖” marks technical details that most readers can skip on a first pass.
 
 <details>
 <summary>🔐 Cloudflare API Access <sup><em>click to expand</em></sup></summary>
@@ -516,7 +532,7 @@ The emoji “🧪” marks experimental features, and the emoji “🤖” marks
 
 | Name | Meaning | Default Value |
 | -- | -- | -- |
-| `MANAGED_RECORDS_COMMENT_REGEX` (available since version 1.16.0) | Regex that selects which DNS records this updater manages by their comments. Matched records are updated or deleted as needed; new records are created with comments that match. Uses [RE2](https://github.com/google/re2/wiki/Syntax) syntax (the Go `regexp` syntax, not Perl/PCRE). | `""` (empty regex; manages all DNS records) |
+| <a id="managed-records-comment-regex"></a>`MANAGED_RECORDS_COMMENT_REGEX` (available since version 1.16.0) | Regex that selects which DNS records this updater manages by their comments. Matched records are updated or deleted as needed; new records are created with comments that match. Uses [RE2](https://github.com/google/re2/wiki/Syntax) syntax (the Go `regexp` syntax, not Perl/PCRE). | `""` (empty regex; manages all DNS records) |
 
 > 🔗 `DOMAINS`, `IP4_DOMAINS`, and `IP6_DOMAINS` are additive; they do not override each other. For example, setting `DOMAINS=a.org` and `IP4_DOMAINS=b.org` means the updater manages `A` records for both `a.org` and `b.org` (and `AAAA` records for `a.org`).
 >
@@ -595,7 +611,7 @@ The emoji “🧪” marks experimental features, and the emoji “🤖” marks
 
 | Provider Name | Explanation |
 | -- | -- |
-| `cloudflare.trace` | <p>Get the IP address from Cloudflare's HTTPS trace endpoints. It may contact the following hosts and uses the first validated response:</p><ul><li><a href="https://api.cloudflare.com/cdn-cgi/trace">api.cloudflare.com</a></li><li><a href="https://www.cloudflare.com/cdn-cgi/trace">www.cloudflare.com</a></li><li><a href="https://connectivity.cloudflareclient.com/cdn-cgi/trace">connectivity.cloudflareclient.com</a></li></ul><p>**This is the default provider.**</p> |
+| `cloudflare.trace` | <p>Get the IP address from Cloudflare’s HTTPS trace endpoints. It may contact the following hosts and uses the first validated response:</p><ul><li><a href="https://api.cloudflare.com/cdn-cgi/trace">api.cloudflare.com</a></li><li><a href="https://www.cloudflare.com/cdn-cgi/trace">www.cloudflare.com</a></li><li><a href="https://connectivity.cloudflareclient.com/cdn-cgi/trace">connectivity.cloudflareclient.com</a></li></ul><p>**This is the default provider.**</p> |
 | `cloudflare.doh` | Get the IP address by querying `whoami.cloudflare.` against [Cloudflare via DNS-over-HTTPS](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/). |
 | `local` | <p>Get the IP address via local network interfaces and routing tables. The updater will use the local address that _would have_ been used for outbound UDP connections to Cloudflare servers. (No data will be transmitted.)</p><p>⚠️ The updater needs access to the host network (such as `network_mode: host` in Docker Compose) for this provider, for otherwise the updater will detect the addresses inside [the default bridge network in Docker](https://docs.docker.com/engine/network/drivers/bridge/) instead of those in the host network.</p> |
 | 🧪 `local.iface:<iface>` (available since version 1.15.0) | <p>🧪 Get IP addresses via the specific local network interface `iface`. Since version 1.16.0, the updater collects all matching global unicast addresses of the selected IP family (IPv4 or IPv6) instead of just the first one, then reconciles DNS records and WAF lists against that full set.</p><p>⚠️ The updater needs access to the host network (such as `network_mode: host` in Docker Compose) for this provider, for otherwise the updater cannot access host network interfaces.</p><p>🤖 The updater ignores the prefix length reported by the interface, because it commonly describes its local subnet, not the range the updater should claim. The updater uses the default prefix lengths from `IP4_DEFAULT_PREFIX_LEN` or `IP6_DEFAULT_PREFIX_LEN` instead.</p> |
@@ -604,8 +620,8 @@ The emoji “🧪” marks experimental features, and the emoji “🤖” marks
 | `url.via6:<url>` (available since version 1.16.0) | <p>Fetch the IP address from a URL while always connecting to that URL over IPv6. It accepts the same CIDR notation and 🧪 multiple-address text format as `url:`.</p><p>The intention is to get an IPv4 address over IPv6 with `IP4_PROVIDER=url.via6:<url>`. In comparison, `IP4_PROVIDER=url:<url>` will get an IPv4 address over the matching IP family (IPv4).</p> |
 | `file:<absolute-path>` (available since version 1.16.0) | <p>Read the IP address from a local file. The path must be absolute.</p><p>The file is re-read on every detection cycle, so you can update it without restarting the updater.</p><p>🧪 The file may also use the line-based text format described after this table for multiple addresses.</p><p>⚠️ The file must be readable by the user configured by `user: "UID:GID"`.</p> |
 | `static:<ip1>,<ip2>,...` (available since version 1.16.0) | <p>Use one or more explicit IP addresses or addresses in CIDR notation as a fixed set, separated by commas. This is an advanced provider for tests, debugging, and special fixed-input setups.</p><p>⚠️ Most users should not use it for normal long-running DDNS.</p><p>🤖 The entries are parsed, deduplicated, sorted, and validated for the selected IP family via the same normalization pipeline used by other providers.</p> |
-| `static.empty` (available since version 1.16.0) | <p>Clear existing managed content for the selected IP family. In contrast, `none` preserves existing managed content for that family.</p><p>🧪 If you also use WAF lists, this clears managed items of that IP family but does not delete the list itself. The updater will try to delete the list on exit only when `DELETE_ON_STOP` is enabled.</p><p>⚠️ Most users should not use it for normal long-running DDNS.</p> |
-| `none` | <p>Stop managing the specified IP family for this run. For example `IP4_PROVIDER=none` stops managing IPv4. Existing managed DNS records of that IP family are preserved.</p><p>🧪 Existing managed WAF list items of that IP family are preserved too, because that family is out of scope. Use `static.empty` if you want to clear managed content for that family. As the support of WAF lists is still experimental, please [provide feedback](https://github.com/favonia/cloudflare-ddns/issues/new/choose) if this does not match your needs.</p> |
+| `static.empty` (available since version 1.16.0) | <p>Clear existing managed content for the selected IP family. In contrast, `none` preserves existing content for that family.</p><p>🧪 If you also use WAF lists, this clears managed items of that IP family but does not delete the list itself. For deleting WAF lists themselves, see [`DELETE_ON_STOP`](#delete-on-stop).</p><p>⚠️ Most users should not use it for normal long-running DDNS.</p> |
+| `none` | <p>Stop managing the specified IP family for this run. For example `IP4_PROVIDER=none` stops managing IPv4. Existing DNS records of that IP family are preserved.</p><p>🧪 Existing WAF list items of that IP family are preserved too, because that family is out of scope. Use `static.empty` if you want to clear managed content for that family. As the support of WAF lists is still experimental, please [provide feedback](https://github.com/favonia/cloudflare-ddns/issues/new/choose) if this does not match your needs.</p> |
 
 > 🧪 The `url`, `url.via4`, `url.via6`, and `file` providers can use the following line-based text format for multiple addresses. Each line is one IP address or an address in CIDR notation (e.g., `198.51.100.1/24`). Blank lines are ignored and `#` starts a comment. All entries must belong to the selected IP family; mismatched entries are rejected. Entries are deduplicated and sorted. There must be at least one entry.
 >
@@ -627,12 +643,14 @@ The emoji “🧪” marks experimental features, and the emoji “🤖” marks
 | Name | Meaning | Default Value |
 | -- | -- | -- |
 | `CACHE_EXPIRATION` | The expiration of cached Cloudflare API responses. It can be any positive time duration accepted by [time.ParseDuration](https://pkg.go.dev/time#ParseDuration), such as `1h` or `10m`. | `6h0m0s` (6 hours) |
-| `DELETE_ON_STOP` | <p>Whether managed DNS records and managed WAF content are deleted when the updater exits. It accepts any boolean value supported by [strconv.ParseBool](https://pkg.go.dev/strconv#ParseBool), such as `true`, `false`, `0`, or `1`.</p><p>DNS cleanup applies only to the IP families this updater is managing in that run.</p><p>🧪 For WAF lists, the updater deletes the whole list only when the updater manages both IP families and no filtering is enabled by `MANAGED_WAF_LIST_ITEMS_COMMENT_REGEX`. Otherwise shutdown cleanup keeps the list and deletes only managed items in the managed IP families.</p> | `false` |
+| <a id="delete-on-stop"></a>`DELETE_ON_STOP` | <p>Whether managed DNS records and managed WAF content are deleted when the updater exits. It accepts any boolean value supported by [strconv.ParseBool](https://pkg.go.dev/strconv#ParseBool), such as `true`, `false`, `0`, or `1`.</p><p>DNS cleanup applies to the domains and IP families this updater manages. It deletes only records whose comments match [`MANAGED_RECORDS_COMMENT_REGEX`](#managed-records-comment-regex).</p><p>🧪 For WAF lists, the updater tries to delete the whole list only when the updater manages both IP families and no filtering is enabled by `MANAGED_WAF_LIST_ITEMS_COMMENT_REGEX`. Otherwise shutdown cleanup keeps the list and deletes only managed items in the managed IP families.</p> | `false` |
 | `TZ` | <p>The timezone used for logging messages and parsing `UPDATE_CRON`. It can be any timezone accepted by [time.LoadLocation](https://pkg.go.dev/time#LoadLocation), including any IANA Time Zone.</p><p>🤖 The pre-built Docker images come with the embedded timezone database via the [time/tzdata](https://pkg.go.dev/time/tzdata) package.</p> | `UTC` |
-| `UPDATE_CRON` | <p>The schedule to re-check IP addresses and update DNS records and WAF lists (if needed). The format is [any cron expression accepted by the `cron` library](https://pkg.go.dev/github.com/robfig/cron/v3#hdr-CRON_Expression_Format) or the special value `@once`. The special value `@once` means the updater will terminate immediately after updating the DNS records or WAF lists, effectively disabling the scheduling feature.</p><p>🤖 With `@every 5m`, if a check and its updates take two minutes, the updater only waits about three minutes before starting the next check.</p> | `@every 5m` (every 5 minutes) |
-| `UPDATE_ON_START` | Whether to check IP addresses (and possibly update DNS records and WAF lists) _immediately_ on start, regardless of the update schedule specified by `UPDATE_CRON`. It can be any boolean value accepted by [strconv.ParseBool](https://pkg.go.dev/strconv#ParseBool), such as `true`, `false`, `0`, or `1`. | `true` |
+| `UPDATE_CRON` | <p>The schedule to re-check IP addresses and update DNS records and WAF lists (if needed). The format is [any cron expression accepted by the `cron` library](https://pkg.go.dev/github.com/robfig/cron/v3#hdr-CRON_Expression_Format) or the special value `@once`. The special value `@once` runs one update or cleanup, then exits without scheduling further updates.</p><p>With `@once`, enabling `DELETE_ON_STOP` runs cleanup directly. This combination requires `static.empty` for each managed IP family; use `none` for an IP family you want to leave unchanged.</p><p>🤖 With `@every 5m`, if a check and its updates take two minutes, the updater only waits about three minutes before starting the next check.</p> | `@every 5m` (every 5 minutes) |
+| `UPDATE_ON_START` | Whether to check IP addresses (and possibly update DNS records and WAF lists) _immediately_ on start, regardless of the update schedule specified by `UPDATE_CRON`. It can be any boolean value accepted by [strconv.ParseBool](https://pkg.go.dev/strconv#ParseBool), such as `true`, `false`, `0`, or `1`. With `UPDATE_CRON=@once`, this must be `true`. | `true` |
 
-> 💡 Active cleanup tip: set one or both IP providers to `static.empty` and use `UPDATE_CRON=@once` to remove managed DNS records or managed WAF items and then exit. If both providers are `static.empty`, you can add `DELETE_ON_STOP=true` to make the updater try to delete the WAF list itself too.
+See [Exit Status](#exit-status) for how the updater reports success or failure.
+
+> 💡 Active cleanup tip: to clear both IPv4 and IPv6 content, set both IP providers to `static.empty`. To clear one family’s content and preserve the other’s, use `static.empty` for the family to clear and `none` for the family to preserve. Use `UPDATE_CRON=@once` to remove the selected families’ managed DNS records and WAF items, then exit. For deleting WAF lists themselves, see [`DELETE_ON_STOP`](#delete-on-stop).
 
 </details>
 
